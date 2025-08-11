@@ -97,7 +97,12 @@
   }
   
   .answer-buttons{
-    display:grid; grid-template-columns:1fr 1fr; gap:12px;
+    display:grid; grid-template-columns:1fr auto; gap:12px;
+  }
+  
+  .speak-btn {
+    min-width: 100px;
+    padding: 16px 20px !important;
   }
   
   .stats{
@@ -474,14 +479,63 @@ function getKoreanParts(text) {
 
 function speak(text) {
   try {
+    // 1. Google Text-to-Speech API 사용 (더 자연스러운 발음)
+    const googleTTSUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=en&client=tw-ob`;
+    
+    // 오디오 요소 생성
+    const audio = new Audio();
+    audio.crossOrigin = "anonymous";
+    audio.src = googleTTSUrl;
+    
+    // 재생 시도
+    audio.play().catch(() => {
+      // Google TTS가 실패하면 브라우저 내장 TTS 사용
+      fallbackSpeak(text);
+    });
+    
+  } catch (error) {
+    // 오류 시 브라우저 내장 TTS로 대체
+    fallbackSpeak(text);
+  }
+}
+
+function fallbackSpeak(text) {
+  try {
+    // 브라우저 내장 TTS (백업용)
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'en-US';
-    utterance.rate = 0.9;
+    utterance.rate = 0.8;
+    utterance.pitch = 1.0;
+    utterance.volume = 1.0;
+    
+    // 영어 음성 선택 (가능한 경우)
+    const voices = speechSynthesis.getVoices();
+    const englishVoice = voices.find(voice => 
+      voice.lang.startsWith('en') && voice.name.includes('Google')
+    ) || voices.find(voice => voice.lang.startsWith('en'));
+    
+    if (englishVoice) {
+      utterance.voice = englishVoice;
+    }
+    
     speechSynthesis.cancel();
     speechSynthesis.speak(utterance);
   } catch (error) {
     console.log('음성 기능을 사용할 수 없습니다.');
+    showSpeakError();
   }
+}
+
+function showSpeakError() {
+  const speakBtn = document.getElementById('speakBtn');
+  const originalText = speakBtn.textContent;
+  speakBtn.textContent = '🔇 음성 불가';
+  speakBtn.disabled = true;
+  
+  setTimeout(() => {
+    speakBtn.textContent = originalText;
+    speakBtn.disabled = false;
+  }, 2000);
 }
 
 function showResult(message, isCorrect) {
@@ -698,7 +752,17 @@ wrongBtn.addEventListener('click', showWrongAnswers);
 
 speakBtn.addEventListener('click', () => {
   if (currentIndex < currentQuiz.length) {
-    speak(currentQuiz[currentIndex].eng);
+    const currentWord = currentQuiz[currentIndex].eng;
+    speakBtn.textContent = '🔊 재생중...';
+    speakBtn.disabled = true;
+    
+    speak(currentWord);
+    
+    // 버튼 상태 복원
+    setTimeout(() => {
+      speakBtn.textContent = '🔊 발음';
+      speakBtn.disabled = false;
+    }, 1500);
   }
 });
 
