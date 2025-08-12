@@ -39,3 +39,324 @@
   .choice.wrong{border-color:#fecaca;background:#fef2f2}
   .stats{display:flex;justify-content:center;gap:12px;margin:10px 0 18px;flex-wrap:wrap}
   .stat{padding:10px 14px;background:#f8fafc;border-radius:12px;text-align:center}
+  .stat-label{font-size:12px;color:var(--muted);margin-bottom:2px}
+  .stat-value{font-size:16px;font-weight:800;color:var(--brand)}
+  .bottom-controls{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .result-message{margin:10px 0 6px;padding:10px;border-radius:8px;font-weight:600;text-align:center;display:none}
+  .result-message.correct{background:#ecfdf5;color:var(--ok);border:1px solid #d1fae5}
+  .result-message.wrong{background:#fef2f2;color:var(--bad);border:1px solid #fecaca}
+  @media (max-width:640px){
+    .controls{grid-template-columns:1fr}
+    .answer-buttons{grid-template-columns:1fr}
+    .bottom-controls{grid-template-columns:1fr}
+    .question{font-size:26px}
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header"><h1>🌟 윤성이가 좋아하는 단어 테스트! 🌟</h1></div>
+
+  <!-- 시작 화면 -->
+  <div class="card" id="startScreen">
+    <div class="controls">
+      <div class="form-group">
+        <label>날짜 선택</label>
+        <select id="daySelect">
+          <option>Day 7 (8/12)</option><option>Day 8 (8/13)</option><option>Day 9 (8/14)</option>
+          <option>Day 10 (8/18)</option><option>Day 11 (8/19)</option><option>Day 12 (8/20)</option>
+          <option>Day 13 (8/21)</option><option>Day 14 (8/25)</option><option>Day 15 (8/26)</option>
+          <option>Day 16 (8/27)</option><option>Day 17 (8/28)</option><option>Day 18 (8/29)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>테스트 모드</label>
+        <select id="modeSelect">
+          <option value="eng2kor">영어 → 한국어 (객관식)</option>
+          <option value="kor2eng">한국어 → 영어 (주관식)</option>
+        </select>
+      </div>
+    </div>
+    <button id="startBtn">🚀 테스트 시작하기</button>
+    <button id="resetBtn" class="secondary" style="margin-top:12px;">📝 진행률 초기화</button>
+  </div>
+
+  <!-- 퀴즈 화면 -->
+  <div class="card quiz-area" id="quizScreen">
+    <div class="quiz-info" id="quizInfo">Day ? • 문제 ?/?</div>
+
+    <div class="question" id="questionText">문제가 여기에 표시됩니다</div>
+    <div class="hint" id="hintText">힌트가 여기에 표시됩니다</div>
+
+    <!-- 객관식(영→한) -->
+    <div id="mcArea" class="choices" style="display:none"></div>
+
+    <!-- 주관식(한→영) -->
+    <div id="inputArea" class="answer-section" style="display:none">
+      <input type="text" id="answerInput" class="answer-input" placeholder="정답을 입력하세요">
+      <div class="answer-buttons">
+        <button id="checkBtn">✓ 확인</button>
+        <button id="dictBtn" class="secondary">🔎 네이버 사전</button>
+      </div>
+    </div>
+
+    <div id="resultMessage" class="result-message"></div>
+
+    <div class="stats">
+      <div class="stat"><div class="stat-label">정답</div><div class="stat-value" id="correctCount">0</div></div>
+      <div class="stat"><div class="stat-label">오답</div><div class="stat-value" id="wrongCount">0</div></div>
+      <div class="stat"><div class="stat-label">연속정답</div><div class="stat-value" id="streakCount">0</div></div>
+    </div>
+
+    <div class="bottom-controls">
+      <button id="skipBtn" class="secondary">⏭ 건너뛰기</button>
+      <button id="wrongBtn" class="secondary">📝 오답노트</button>
+      <button id="nextBtn">➡ 다음 문제</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---------------- 단어 데이터 ---------------- */
+const WORDS = {
+  "Day 7 (8/12)":[
+    {eng:"light a flame", kor:"불을 지피다"},{eng:"arson", kor:"방화"},{eng:"on purpose", kor:"고의로, 일부러"},
+    {eng:"heatwave", kor:"열기, 열선"},{eng:"destroy", kor:"파괴하다"},{eng:"history", kor:"역사"},
+    {eng:"eastern", kor:"동쪽에 위치한"},{eng:"reach", kor:"~에 이르다, 닿다"},{eng:"luckily", kor:"다행스럽게도"},
+    {eng:"accident", kor:"사고, 재해"},{eng:"cigarette", kor:"담배"},{eng:"car crash", kor:"자동차 충돌사고"},
+    {eng:"knock down", kor:"때려 부수다"},{eng:"electrical line", kor:"전선"},{eng:"spark", kor:"불꽃, 불똥, 불꽃을 일으키다"}
+  ],
+  "Day 8 (8/13)":[
+    {eng:"controlled burn", kor:"통제된 연소"},{eng:"satellite", kor:"(인공) 위성, 위성(장치)"},
+    {eng:"put out fires", kor:"불을 끄다"},{eng:"chemical", kor:"화학의"},{eng:"equipment", kor:"장비"},
+    {eng:"tower", kor:"탑, 송신탑"},{eng:"look for", kor:"~을 찾다"},{eng:"call for", kor:"~을 필요로 하다"},
+    {eng:"match", kor:"성냥"},{eng:"effect", kor:"영향, 결과, 효과"},{eng:"cost", kor:"비용, 비용이 들다"},
+    {eng:"breathe", kor:"호흡하다, 숨을 쉬다"},{eng:"look after", kor:"~을 보살피다, ~에 주의하다"},
+    {eng:"expert", kor:"전문가"},{eng:"prevent", kor:"막다, 예방하다"}
+  ],
+  "Day 9 (8/14)":[
+    {eng:"lighter", kor:"(담배) 라이터"},{eng:"fire extinguisher", kor:"소화기"},{eng:"emergency", kor:"비상(사태)"},
+    {eng:"evacuate", kor:"대피시키다"},{eng:"order", kor:"명령"},{eng:"ash", kor:"재, 잿더미"},
+    {eng:"jewelry", kor:"보석류"},{eng:"envelope", kor:"봉투"},{eng:"tore", kor:"(tear의 과거) 찢었다"},
+    {eng:"invitation", kor:"초대(초청)장"},{eng:"a grand ball", kor:"성대한 무도회"},{eng:"palace", kor:"궁전, 왕실"},
+    {eng:"instead of", kor:"~대신에"},{eng:"opportunity", kor:"기회"},{eng:"irritated", kor:"짜증이 난, 화난"}
+  ],
+  "Day 10 (8/18)":[
+    {eng:"glance", kor:"흘깃보다, 흘끗 봄"},{eng:"impatiently", kor:"조마조마하게, 조급하게"},
+    {eng:"stammer", kor:"말을 더듬다, 말더듬기"},{eng:"calm", kor:"침착한, 차분한"},{eng:"voice", kor:"목소리"},
+    {eng:"franc", kor:"프랑 (화폐단위)"},{eng:"grow pale", kor:"파랗게 질리다"},{eng:"savings", kor:"저축"},
+    {eng:"anxious", kor:"불안해하는"},{eng:"annoy", kor:"짜증나게하다"},{eng:"stylish", kor:"유행을 따르는, 멋진, 우아한"},
+    {eng:"humiliating", kor:"굴욕스러운"},{eng:"lend", kor:"빌려주다"},{eng:"wardrobe", kor:"옷장"},
+    {eng:"Certainly", kor:"그럼요, 물론이지요"}
+  ],
+  "Day 11 (8/19)":[
+    {eng:"present", kor:"참석한"},{eng:"feel a sense of joy", kor:"희열감을 느끼다"},
+    {eng:"elegant", kor:"우아한, 품격있는"},{eng:"midnight", kor:"자정, 한밤중"},
+    {eng:"contrast", kor:"대조하다, 대조"},{eng:"catch a cold", kor:"감기 들다"},{eng:"cab", kor:"택시"},
+    {eng:"despair", kor:"절망, 절망하다"},{eng:"whole", kor:"전체의"},{eng:"route", kor:"길, 노선"},
+    {eng:"completely", kor:"완전히"},{eng:"overwhelmed", kor:"압도된"},{eng:"reward", kor:"보상, 보상하다"},
+    {eng:"fear", kor:"두려움, 공포"},{eng:"hollow", kor:"(속이) 빈"}
+  ],
+  "Day 12 (8/20)":[
+    {eng:"clasp", kor:"(꽉) 움켜쥐다, (꽉) 껴안다"},{eng:"mend", kor:"수리하다, 고치다"},
+    {eng:"make a plan", kor:"계획을 짜다"},{eng:"lose hope", kor:"실망하다"},
+    {eng:"possess", kor:"소유하다, 지니다"},{eng:"borrow", kor:"빌리다"},{eng:"collect", kor:"모으다"},
+    {eng:"frightened", kor:"겁먹은, 무서워하는"},{eng:"whenever", kor:"~할 때는 언제든지, ~할 때마다"},
+    {eng:"from then on", kor:"그때부터"},{eng:"detect", kor:"발견하다, 감지하다"},{eng:"substitution", kor:"대체"},
+    {eng:"thief", kor:"도둑"},{eng:"tough", kor:"힘든, 어려운"},{eng:"complain", kor:"불평하다"}
+  ],
+  "Day 13 (8/21)":[
+    {eng:"accept", kor:"받아들이다"},{eng:"dreadful", kor:"끔찍한, 지독한"},{eng:"debt", kor:"빚, 부채"},
+    {eng:"dainty", kor:"앙증맞은, 조심스러운"},{eng:"bargain", kor:"싸게 사는 물건, 협의, 흥정"},
+    {eng:"absolutely", kor:"틀림없이"},{eng:"interest", kor:"이자"},{eng:"admire", kor:"존경하다, 칭찬하다"},
+    {eng:"strange", kor:"이상한, 낯선"},{eng:"refresh", kor:"생기를 되찾게하다"},{eng:"charming", kor:"매력적인, 멋진"},
+    {eng:"astonish", kor:"깜짝 놀라게 하다"},{eng:"greet", kor:"환영하다"},{eng:"utter", kor:"(말을) 하다"},
+    {eng:"poverty", kor:"가난"}
+  ],
+  "Day 14 (8/25)":[
+    {eng:"outbreak", kor:"발생, 발발"},{eng:"pandemic", kor:"전국(전 세계적인) 유행병"},
+    {eng:"be ill", kor:"몸이 편치 않다"},{eng:"at the same time", kor:"그와 동시에"},
+    {eng:"illness", kor:"병, 아픔"},{eng:"from person to person", kor:"사람에서 사람으로"},
+    {eng:"serious", kor:"심각한"},{eng:"break out", kor:"발생하다, 발발하다"},{eng:"affect", kor:"영향을 미치다"},
+    {eng:"tiny", kor:"아주 작은"},{eng:"organism", kor:"유기체, (극도로 작은) 생물체"},
+    {eng:"microscope", kor:"현미경"},{eng:"bacteria", kor:"박테리아, 세균"},
+    {eng:"are made of", kor:"~으로 만들어지다"},{eng:"cell", kor:"세포"}
+  ],
+  "Day 15 (8/26)":[
+    {eng:"digest", kor:"소화하다"},{eng:"infection", kor:"감염"},{eng:"enter", kor:"들어가다"},
+    {eng:"stick to", kor:"~에 달라붙다, 고수하다"},{eng:"copy", kor:"복사, 복사하다"},
+    {eng:"virus", kor:"바이러스"},{eng:"common", kor:"흔한"},{eng:"the flu", kor:"독감"},
+    {eng:"human", kor:"인간"},{eng:"dangerous", kor:"위험한"},{eng:"develop", kor:"성장하다, 발전하다"},
+    {eng:"Europe", kor:"유럽"},{eng:"everywhere", kor:"모든 곳, 어디나"},{eng:"Plague", kor:"전염병"},
+    {eng:"European", kor:"유럽의"}
+  ],
+  "Day 16 (8/27)":[
+    {eng:"continue", kor:"계속하다"},{eng:"flea", kor:"벼룩"},{eng:"rat", kor:"쥐"},
+    {eng:"carry", kor:"(병을) 옮기다"},{eng:"was filled with", kor:"~으로 가득찼다"},
+    {eng:"herb", kor:"허브, 약초"},{eng:"ability", kor:"능력"},{eng:"infectious", kor:"전염되는"},
+    {eng:"sneezing", kor:"재채기"},{eng:"door handle", kor:"손잡이"},{eng:"type", kor:"유형"},
+    {eng:"cough", kor:"기침하다, 기침"},{eng:"anymore", kor:"더이상"},{eng:"create", kor:"창조하다"},
+    {eng:"vaccine", kor:"백신"}
+  ],
+  "Day 17 (8/28)":[
+    {eng:"medicine", kor:"약, 의약"},{eng:"less", kor:"덜"},{eng:"healthy", kor:"건강한"},
+    {eng:"exercise", kor:"운동하다"},{eng:"simple", kor:"간단한, 단순한"},{eng:"step", kor:"단계"},
+    {eng:"protect", kor:"보호하다"},{eng:"cover", kor:"덮다, 가리다"},{eng:"keep a distance", kor:"거리를 유지하다"},
+    {eng:"follow", kor:"따르다"},{eng:"direction", kor:"지시"},{eng:"make sure", kor:"확실하게 하다"},
+    {eng:"on average", kor:"평균적으로"},{eng:"on stage", kor:"무대에서"},{eng:"stream", kor:"스트리밍하다"}
+  ],
+  "Day 18 (8/29)":[
+    {eng:"dance to music", kor:"음악에 맞춰 춤추다"},{eng:"attend", kor:"참석하다"},
+    {eng:"write lyrics", kor:"가사를 쓰다"},{eng:"held", kor:"(축제를) 열었다"},
+    {eng:"music competition", kor:"음악경연대회"},{eng:"fantastic", kor:"엄청난, 굉장한"},
+    {eng:"senior", kor:"나이 든 사람, 노인"},{eng:"unity", kor:"통합, 일치"},
+    {eng:"convince", kor:"납득시키다"},{eng:"nothing", kor:"아무것도 (아니다)"},
+    {eng:"beat", kor:"이기다"},{eng:"get a chance", kor:"기회를 얻다"},{eng:"regret", kor:"후회하다"},
+    {eng:"hit a home run", kor:"홈런을 치다"},{eng:"commit", kor:"저지르다, 범하다"}
+  ]
+};
+
+/* ------------- 상태/요소 ------------- */
+let allQ=[], idx=0, correct=0, wrong=0, streak=0, answered=false, mode='eng2kor';
+const startScreen=document.getElementById('startScreen'), quizScreen=document.getElementById('quizScreen');
+const daySelect=document.getElementById('daySelect'), modeSelect=document.getElementById('modeSelect');
+const startBtn=document.getElementById('startBtn'), resetBtn=document.getElementById('resetBtn');
+const quizInfo=document.getElementById('quizInfo'), questionText=document.getElementById('questionText'), hintText=document.getElementById('hintText');
+const mcArea=document.getElementById('mcArea');
+const inputArea=document.getElementById('inputArea'), answerInput=document.getElementById('answerInput');
+const checkBtn=document.getElementById('checkBtn'), dictBtn=document.getElementById('dictBtn');
+const resultMessage=document.getElementById('resultMessage');
+const correctCountEl=document.getElementById('correctCount'), wrongCountEl=document.getElementById('wrongCount'), streakCountEl=document.getElementById('streakCount');
+
+const KEY='yoonsung_vocab_progress_v4';
+
+/* ------------- 유틸/저장 ------------- */
+const $n = (html)=>{const d=document.createElement('div'); d.innerHTML=html.trim(); return d.firstChild;}
+function normalize(s){return (s||'').toLowerCase().replace(/[()]/g,' ').replace(/\s+/g,' ').replace(/\s*,\s*/g,',').trim()}
+function korParts(s){return s.split(/[,·/]| 또는 /g).map(t=>t.trim()).filter(Boolean)}
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]} return a}
+function saveProg(day,eng,ok){let p={};try{p=JSON.parse(localStorage.getItem(KEY)||'{}')}catch{}; p[day]??={done:[],wrong:[]};
+  if(ok){ if(!p[day].done.includes(eng)) p[day].done.push(eng); p[day].wrong=p[day].wrong.filter(x=>x!==eng); }
+  else{ if(!p[day].wrong.includes(eng)) p[day].wrong.push(eng); }
+  localStorage.setItem(KEY, JSON.stringify(p));
+}
+function loadProg(){ try{return JSON.parse(localStorage.getItem(KEY)||'{}')}catch{return{}} }
+function showMsg(text,good){ resultMessage.textContent=text; resultMessage.className='result-message '+(good?'correct':'wrong'); resultMessage.style.display='block'; setTimeout(()=>resultMessage.style.display='none',2200); }
+
+/* ------------- 네이버 사전 ------------- */
+function openNaver(query){ const url=`https://en.dict.naver.com/#/search?query=${encodeURIComponent(query)}`; window.open(url,'_blank','noopener'); }
+
+/* ------------- 시작/화면 ------------- */
+startBtn.addEventListener('click', ()=>{
+  mode = modeSelect.value;
+  const day = daySelect.value;
+  // ✅ 하루 15개 전부 사용
+  allQ = WORDS[day].slice();
+  idx=0; correct=0; wrong=0; streak=0; answered=false;
+  correctCountEl.textContent=0; wrongCountEl.textContent=0; streakCountEl.textContent=0;
+  startScreen.style.display='none';
+  quizScreen.classList.add('active');
+  renderQ();
+});
+resetBtn.addEventListener('click', ()=>{ if(confirm('저장된 진행률과 오답노트를 삭제할까요?')){ localStorage.removeItem(KEY); alert('초기화 완료!') }});
+
+function renderQ(){
+  const day=daySelect.value, item=allQ[idx];
+  quizInfo.textContent = `${day} • 문제 ${idx+1}/${allQ.length}`;
+  answered=false;
+  resultMessage.style.display='none';
+
+  if(mode==='eng2kor'){
+    // 객관식
+    questionText.textContent = item.eng;
+    hintText.textContent = '한국어 뜻을 고르세요';
+    mcArea.style.display='grid';
+    inputArea.style.display='none';
+    mcArea.innerHTML='';
+    // 보기: 같은 날에서 정답+3 오답
+    const pool = WORDS[day].filter(x=>x.kor!==item.kor);
+    const distract = shuffle(pool).slice(0,3).map(x=>x.kor);
+    const choices = shuffle([item.kor, ...distract]);
+    choices.forEach(txt=>{
+      const btn = $n(`<button class="choice">${txt}</button>`);
+      btn.addEventListener('click', ()=>gradeMC(btn, item));
+      mcArea.appendChild(btn);
+    });
+  }else{
+    // 주관식
+    questionText.textContent = item.kor;
+    hintText.textContent = '영어 단어/구문을 입력하세요';
+    mcArea.style.display='none';
+    inputArea.style.display='block';
+    answerInput.value='';
+    answerInput.placeholder='예: fire extinguisher';
+    setTimeout(()=>answerInput.focus(),100);
+  }
+}
+
+function gradeMC(clickedBtn, item){
+  if(answered) return; answered=true;
+  const day=daySelect.value;
+  const expected = item.kor;
+  const user = clickedBtn.textContent;
+  // 정/오 표시
+  [...mcArea.children].forEach(b=>{
+    const t=b.textContent;
+    if(normalize(t)===normalize(expected)) b.classList.add('correct');
+    if(b===clickedBtn && normalize(user)!==normalize(expected)) b.classList.add('wrong');
+    b.disabled=true;
+  });
+  const ok = normalize(user)===normalize(expected);
+  if(ok){ correct++; streak++; showMsg('🎉 정답입니다!', true); saveProg(day,item.eng,true); }
+  else { wrong++; streak=0; showMsg(`❌ 정답: ${expected}`, false); saveProg(day,item.eng,false); }
+  correctCountEl.textContent=correct; wrongCountEl.textContent=wrong; streakCountEl.textContent=streak;
+}
+
+function gradeInput(){
+  if(answered) return; answered=true;
+  const day=daySelect.value, item=allQ[idx];
+  const user=normalize(answerInput.value.trim());
+  if(!user){ alert('답을 입력해주세요!'); answered=false; return; }
+  const ok = user===normalize(item.eng);
+  if(ok){ correct++; streak++; showMsg('🎉 정답입니다!', true); saveProg(day,item.eng,true); }
+  else { wrong++; streak=0; showMsg(`❌ 정답: ${item.eng}`, false); saveProg(day,item.eng,false); }
+  correctCountEl.textContent=correct; wrongCountEl.textContent=wrong; streakCountEl.textContent=streak;
+}
+
+document.getElementById('checkBtn').addEventListener('click', gradeInput);
+document.getElementById('dictBtn').addEventListener('click', ()=>{
+  if(idx<allQ.length) openNaver(allQ[idx].eng);
+});
+document.getElementById('nextBtn').addEventListener('click', ()=>{
+  if(idx<allQ.length-1){ idx++; renderQ(); } else finish();
+});
+document.getElementById('skipBtn').addEventListener('click', ()=>{
+  if(idx<allQ.length-1){ idx++; renderQ(); } else finish();
+});
+document.getElementById('wrongBtn').addEventListener('click', ()=>{
+  const day=daySelect.value, p=loadProg()[day]||{wrong:[]};
+  const onlyWrong = WORDS[day].filter(w=>p.wrong.includes(w.eng));
+  if(onlyWrong.length===0){ alert('오답이 없습니다! 🎉'); return; }
+  allQ = onlyWrong; idx=0; correct=0; wrong=0; streak=0;
+  correctCountEl.textContent=0; wrongCountEl.textContent=0; streakCountEl.textContent=0;
+  renderQ();
+});
+function finish(){
+  const acc = allQ.length ? Math.round((correct/allQ.length)*100) : 0;
+  alert(`🎊 완료!\n정답: ${correct}개\n오답: ${wrong}개\n정답률: ${acc}%`);
+  quizScreen.classList.remove('active'); startScreen.style.display='block';
+}
+
+/* Enter 키: 주관식에서 제출/다음 */
+answerInput.addEventListener('keydown', (e)=>{
+  if(e.key==='Enter'){
+    if(!answered) gradeInput();
+    else if(idx<allQ.length-1) { idx++; renderQ(); }
+    else finish();
+  }
+});
+
+document.addEventListener('DOMContentLoaded', ()=>daySelect.focus());
+</script>
+</body>
+</html>
