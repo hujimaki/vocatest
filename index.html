@@ -19,9 +19,7 @@
   .header h1{margin:0;font-size:28px;font-weight:800;text-shadow:0 2px 4px rgba(0,0,0,.2)}
   /* 모바일에서만 제목 줄바꿈 */
   .mobile-break br{display:none;}
-  @media (max-width:640px){
-    .mobile-break br{display:inline;}
-  }
+  @media (max-width:640px){ .mobile-break br{display:inline;} }
 
   .card{background:var(--card);border-radius:16px;box-shadow:0 4px 20px rgba(0,0,0,.08);padding:24px;margin-bottom:20px}
   .controls{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
@@ -62,6 +60,25 @@
   .result-message{margin:10px 0 6px;padding:10px;border-radius:8px;font-weight:600;text-align:center;display:none}
   .result-message.correct{background:#ecfdf5;color:var(--ok);border:1px solid #d1fae5}
   .result-message.wrong{background:#fef2f2;color:var(--bad);border:1px solid #fecaca}
+
+  /* ✅ 정답/오답 팝업 이미지 */
+  .popup-wrap{
+    position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+    pointer-events:none; z-index:9999;
+  }
+  .popup-img{
+    max-width:min(76vw,420px); max-height:70vh; border-radius:16px;
+    box-shadow:0 12px 36px rgba(0,0,0,.35); opacity:0; transform:scale(.8);
+    animation:popfade .9s ease forwards;
+    background:#fff;
+  }
+  @keyframes popfade{
+    0%{opacity:0; transform:scale(.8)}
+    12%{opacity:1; transform:scale(1.02)}
+    25%{opacity:1; transform:scale(1)}
+    75%{opacity:.98; transform:scale(1)}
+    100%{opacity:0; transform:scale(.96)}
+  }
 
   @media (max-width:640px){
     .controls{grid-template-columns:1fr}
@@ -140,7 +157,16 @@
   </div>
 </div>
 
+<!-- ✅ 팝업 이미지 컨테이너 -->
+<div id="popupRoot" class="popup-wrap" style="display:none">
+  <img id="popupImg" class="popup-img" alt="result">
+</div>
+
 <script>
+/* ---------------- 이미지 경로 설정 (여기만 맞게 바꾸세요) ---------------- */
+const CORRECT_IMG = 'images/a.jpg'; // 맞았을 때 이미지 경로 (예: 같은 폴더면 'a.jpg')
+const WRONG_IMG   = 'images/b.jpg'; // 틀렸을 때 이미지 경로
+
 /* ---------------- 단어 데이터 ---------------- */
 const WORDS = {
   "Day 7 (8/12)":[
@@ -252,12 +278,11 @@ const checkBtn=document.getElementById('checkBtn'), dictBtn=document.getElementB
 const resultMessage=document.getElementById('resultMessage');
 const correctCountEl=document.getElementById('correctCount'), wrongCountEl=document.getElementById('wrongCount'), streakCountEl=document.getElementById('streakCount');
 
-const KEY='yoonsung_vocab_progress_v4';
+const KEY='yoonsung_vocab_progress_v5';
 
 /* ------------- 유틸/저장 ------------- */
 const $n = (html)=>{const d=document.createElement('div'); d.innerHTML=html.trim(); return d.firstChild;}
 function normalize(s){return (s||'').toLowerCase().replace(/[()]/g,' ').replace(/\s+/g,' ').replace(/\s*,\s*/g,',').trim()}
-function korParts(s){return s.split(/[,·/]| 또는 /g).map(t=>t.trim()).filter(Boolean)}
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]} return a}
 function saveProg(day,eng,ok){let p={};try{p=JSON.parse(localStorage.getItem(KEY)||'{}')}catch{}; p[day]??={done:[],wrong:[]};
   if(ok){ if(!p[day].done.includes(eng)) p[day].done.push(eng); p[day].wrong=p[day].wrong.filter(x=>x!==eng); }
@@ -265,10 +290,22 @@ function saveProg(day,eng,ok){let p={};try{p=JSON.parse(localStorage.getItem(KEY
   localStorage.setItem(KEY, JSON.stringify(p));
 }
 function loadProg(){ try{return JSON.parse(localStorage.getItem(KEY)||'{}')}catch{return{}} }
-function showMsg(text,good){ resultMessage.textContent=text; resultMessage.className='result-message '+(good?'correct':'wrong'); resultMessage.style.display='block'; setTimeout(()=>resultMessage.style.display='none',2200); }
+function showMsg(text,good){ resultMessage.textContent=text; resultMessage.className='result-message '+(good?'correct':'wrong'); resultMessage.style.display='block'; setTimeout(()=>resultMessage.style.display='none',1400); }
 
 /* ------------- 네이버 사전 ------------- */
 function openNaver(query){ const url=`https://en.dict.naver.com/#/search?query=${encodeURIComponent(query)}`; window.open(url,'_blank','noopener'); }
+
+/* ------------- 팝업 이미지 표시 ------------- */
+const popupRoot = document.getElementById('popupRoot');
+const popupImg  = document.getElementById('popupImg');
+
+function flashImage(isCorrect){
+  const src = isCorrect ? CORRECT_IMG : WRONG_IMG;
+  popupImg.src = src;
+  popupRoot.style.display = 'flex';
+  // 애니메이션 길이(0.9s)에 맞춰 숨김
+  setTimeout(()=>{ popupRoot.style.display='none'; popupImg.removeAttribute('src'); }, 950);
+}
 
 /* ------------- 시작/화면 ------------- */
 startBtn.addEventListener('click', ()=>{
@@ -297,7 +334,7 @@ function renderQ(){
     mcArea.style.display='grid';
     inputArea.style.display='none';
     mcArea.innerHTML='';
-    // 보기: 같은 날에서 정답+3 오답
+    // 보기(정답 + 3 오답) — 같은 날에서 추출
     const pool = WORDS[day].filter(x=>x.kor!==item.kor);
     const distract = shuffle(pool).slice(0,3).map(x=>x.kor);
     const choices = shuffle([item.kor, ...distract]);
@@ -314,7 +351,7 @@ function renderQ(){
     inputArea.style.display='block';
     answerInput.value='';
     answerInput.placeholder='예: fire extinguisher';
-    setTimeout(()=>answerInput.focus(),100);
+    setTimeout(()=>answerInput.focus(),80);
   }
 }
 
@@ -331,8 +368,8 @@ function gradeMC(clickedBtn, item){
     b.disabled=true;
   });
   const ok = normalize(user)===normalize(expected);
-  if(ok){ correct++; streak++; showMsg('🎉 정답입니다!', true); saveProg(day,item.eng,true); }
-  else { wrong++; streak=0; showMsg(`❌ 정답: ${expected}`, false); saveProg(day,item.eng,false); }
+  if(ok){ correct++; streak++; showMsg('🎉 정답!', true); saveProg(day,item.eng,true); flashImage(true); }
+  else { wrong++; streak=0; showMsg(`❌ 정답: ${expected}`, false); saveProg(day,item.eng,false); flashImage(false); }
   correctCountEl.textContent=correct; wrongCountEl.textContent=wrong; streakCountEl.textContent=streak;
 }
 
@@ -342,8 +379,8 @@ function gradeInput(){
   const user=normalize(answerInput.value.trim());
   if(!user){ alert('답을 입력해주세요!'); answered=false; return; }
   const ok = user===normalize(item.eng);
-  if(ok){ correct++; streak++; showMsg('🎉 정답입니다!', true); saveProg(day,item.eng,true); }
-  else { wrong++; streak=0; showMsg(`❌ 정답: ${item.eng}`, false); saveProg(day,item.eng,false); }
+  if(ok){ correct++; streak++; showMsg('🎉 정답!', true); saveProg(day,item.eng,true); flashImage(true); }
+  else { wrong++; streak=0; showMsg(`❌ 정답: ${item.eng}`, false); saveProg(day,item.eng,false); flashImage(false); }
   correctCountEl.textContent=correct; wrongCountEl.textContent=wrong; streakCountEl.textContent=streak;
 }
 
@@ -365,6 +402,7 @@ document.getElementById('wrongBtn').addEventListener('click', ()=>{
   correctCountEl.textContent=0; wrongCountEl.textContent=0; streakCountEl.textContent=0;
   renderQ();
 });
+
 function finish(){
   const acc = allQ.length ? Math.round((correct/allQ.length)*100) : 0;
   alert(`🎊 완료!\n정답: ${correct}개\n오답: ${wrong}개\n정답률: ${acc}%`);
